@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<style>
+body {
+  background-color: #bfd1e5;
+  margin: 0px;
+  overflow: hidden;
+}
+</style>
+</head>
+<body>
+
+<div id="container"></div>
+
+<script src="http://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script type="text/javascript">
+var DefaultLoadingManager = THREE.DefaultLoadingManager;
+var FileLoader = THREE.FileLoader;
+var ImageLoader = THREE.ImageLoader;
+var LoaderUtils = THREE.LoaderUtils;
+var Mesh = THREE.Mesh;
+var MeshBasicMaterial = THREE.MeshBasicMaterial;
+var PlaneBufferGeometry = THREE.PlaneBufferGeometry;
+var TextureLoader = THREE.TextureLoader;
+
+
+function MapLoader(manager) {
+  this.manager = (manager !== undefined) ?
+                  manager : DefaultLoadingManager;
+  this.withCredentials = false;
+}
+
+Object.assign(MapLoader.prototype, {
+  load: function (url, onLoad, onProgress, onError) {
+    var scope = this;
+    var texturePath = this.texturePath &&
+                      (typeof this.texturePath === 'string') ?
+                      this.texturePath : LoaderUtils.extractUrlBase(url);
+    var loader = new FileLoader(this.manager);
+    loader.setWithCredentials(this.withCredentials);
+    loader.load(url, function(text) {
+      var json = JSON.parse(text);
+      var object = scope.parse(json, texturePath);
+      onLoad(object.geometry, object.materials);
+    }, onProgress, onError);
+  },
+  setTexturePath: function (value) {
+    this.texturePath = value;
+  },
+  parse: (function () {
+    var geometry;
+    var sx, sy, sz;
+    var vertices;
+    
+    function addShape(index) {
+      var sxi = Math.pow(2, sx - index * 8 - 8);
+      var syi = Math.pow(2, sy - index * 8 - 8);
+      var szi = Math.pow(2, sz - index * 8 - 8);
+      var varr = geometry.attributes.position.array;
+      
+      return function (image) {
+        var canvas = document.createElement('canvas');
+        var context = canvas.getContext('2d');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        context.drawImage(image, 0, 0);
+        var data = context.getImageData(0, 0, image.width, image.height).data;
+        for (var i = 0, j = 0, l = vertices.length; i < l; i += 3, j += 4) {
+          varr[i+0] = vertices[i+0] += data[j+0] * sxi;
+          varr[i+1] = vertices[i+1] += data[j+1] * syi;
+          varr[i+2] = vertices[i+2] += data[j+2] * szi;
+        }
+        if (index == 1) {
+          geometry.computeBoundingBox();
+          geometry.computeVertexNormals();
+        }
+        geometry.attributes.position.needsUpdate = true;
+      };
+    }
+    
+    function err() {
+      console.error(arguments);
+    }
+    
+    return function parse(json, texturePath) {
+      var ox = -json.offset[0];
+      var oy = -json.offset[1];
+      var oz = -json.offset[2];
+      var rw = json.resolution[0];
+      var rh = json.resolution[1];
+      
+      var texture = (new TextureLoader()).load(json.texture);
+      var material = new MeshBasicMaterial({map: texture});
+      
+      sx = json.scale[0];   // scale is the number of bits storing the
+      sy = json.scale[1];   // integer part for each float. This value
+      sz = json.scale[2];   // differs for x, y and z coordinates.
+      
+      vertices = new Float32Array(rw * rh * 3);
+      for (var i=0, l=vertices.length; i<l; i+=3) {
+        vertices[i+0] = ox;
+        vertices[i+1] = oy;
+        vertices[i+2] = oz;
+      }
+      
+      geometry = new PlaneBufferGeometry(1<<sx-1, 1<<sy-1, rw-1, rh-1);
+      json.shape.map(function (shape_file, ix) {
+        (new ImageLoader()).load(shape_file, addShape(ix), undefined, err);
+      });
+      
+      return {geometry: geometry, materials: [material]};
+    };
+  })()
+});
+</script>
+<script type="text/javascript">
+var camera;
+var controls;
+var renderer;
+var scene;
+
+var clock = new THREE.Clock();
+
+init();
+animate();
+
+function init() {
+  var container = document.getElementById('container');
+  
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xbfd1e5);
+  
+  (new MapLoader()).load('face.map', function (geometry, materials) {
+    scene.add(new THREE.Mesh(geometry, materials[0]));
+  });
+  
+  camera = new THREE.PerspectiveCamera(50, 4/3, 1, 20000);
+  camera.position.z = 400;
+  camera.up = new THREE.Vector3(0, 1, 0);
+  camera.lookAt(scene.position);
+  
+  renderer = new THREE.WebGLRenderer();
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(400, 300);
+  
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.addEventListener('change', render);
+  
+  container.innerHTML = '';
+  container.appendChild(renderer.domElement);
+  
+  window.addEventListener('resize', onWindowResize, false);
+  onWindowResize();
+}
+
+function onWindowResize() {
+  var w = window.innerWidth;
+  var h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  //controls.handleResize();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  render();
+}
+
+function render() {
+  //controls.update(clock.getDelta());
+  renderer.render(scene, camera);
+}
+</script>
+
+</body>
+</html>
