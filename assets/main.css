@@ -1,0 +1,19 @@
+body {
+  background: #bfd1e5;
+  margin: 0px;
+  overflow: hidden;
+}
+#dlbtn {
+  bottom: 1vmax;
+  height: 5vmax;
+  position: absolute;
+  right: 1vmax;
+  width: 5vmax;
+}
+#dlbtn:not([href]) {
+  display: none;
+}
+svg .a{fill:#7396c2;}
+svg .b{opacity:0.2;}
+svg .c{fill:#231f20;}
+svg .d{fill:white;}
