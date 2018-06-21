@@ -19,10 +19,10 @@ body {
 #download-button:not([href]) {
   display: none;
 }
-svg.a{fill:#7396c2;}
-svg.b{opacity:0.2;}
-svg.c{fill:#231f20;}
-svg.d{fill:white;}
+svg .a{fill:#7396c2;}
+svg .b{opacity:0.2;}
+svg .c{fill:#231f20;}
+svg .d{fill:white;}
 </style>
 </head>
 <body>
@@ -232,15 +232,19 @@ animate();
 
 function init() {
   var container = document.getElementById('container');
+  var download = document.getElementById('download-button');
   
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfd1e5);
   
   if (location.hash) {
     var loader = new THREE.MapLoader();
-    var file = location.hash.substr(1).match(/[\w-]*/)[0] + '.map';
+    var name = location.hash.substr(1).match(/[\w-]*/)[0];
+    var mapfile = name + '.map';
+    var zipfile = name + '.zip';
     loader.setPath(root);
-    loader.load(file, function (mesh) {scene.add(mesh);});
+    loader.load(mapfile, function (mesh) {scene.add(mesh);});
+    download.href = root + zipfile;
   }
   
   camera = new THREE.PerspectiveCamera(50, 4/3, 1, 20000);
