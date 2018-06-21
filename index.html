@@ -9,115 +9,217 @@ body {
   margin: 0px;
   overflow: hidden;
 }
+#download-button {
+  bottom: 1vmax;
+  height: 5vmax;
+  position: absolute;
+  right: 1vmax;
+  width: 5vmax;
+}
+#download-button:not([href]) {
+  display: none;
+}
+svg.a{fill:#7396c2;}
+svg.b{opacity:0.2;}
+svg.c{fill:#231f20;}
+svg.d{fill:white;}
 </style>
 </head>
 <body>
 
 <div id="container"></div>
+<a id="download-button" href="#"><svg x="0px" y="0px" viewBox="0 0 64 64" style="enable-background:new 0 0 64 64;"><g><g><circle class="a" cx="32" cy="32" r="32"/></g><g class="b"><path class="c" d="M47.8,30H40V18c0-2.2-1.8-4-4-4h-8c-2.2,0-4,1.8-4,4v12h-7.8c-2.7,0-3.5,1.9-1.7,4.1l14.3,18.1 c1.8,2.3,4.7,2.3,6.5,0l14.3-18.1C51.3,31.9,50.6,30,47.8,30z"/></g><g><path class="d" d="M24,16c0-2.2,1.8-4,4-4h8c2.2,0,4,1.8,4,4v24c0,2.2-1.8,4-4,4h-8c-2.2,0-4-1.8-4-4V16z"/></g><g><path class="d" d="M47.8,28c2.7,0,3.5,1.9,1.7,4.1L35.3,50.3c-1.8,2.3-4.7,2.3-6.5,0L14.5,32.1c-1.8-2.3-1-4.1,1.7-4.1H47.8z"/></g></g></svg></a>
 
 <script src="//threejs.org/build/three.min.js"></script>
 <script src="//threejs.org/examples/js/controls/OrbitControls.js"></script>
 <script type="text/javascript">
-var DefaultLoadingManager = THREE.DefaultLoadingManager;
-var FileLoader = THREE.FileLoader;
-var ImageLoader = THREE.ImageLoader;
-var LoaderUtils = THREE.LoaderUtils;
-var Mesh = THREE.Mesh;
-var MeshBasicMaterial = THREE.MeshBasicMaterial;
-var PlaneBufferGeometry = THREE.PlaneBufferGeometry;
-var TextureLoader = THREE.TextureLoader;
 
-
-function MapLoader(manager) {
-  this.manager = (manager !== undefined) ?
-                  manager : DefaultLoadingManager;
-  this.withCredentials = false;
-}
-
-Object.assign(MapLoader.prototype, {
-  load: function (url, onLoad, onProgress, onError) {
-    var scope = this;
-    var texturePath = this.texturePath &&
-                      (typeof this.texturePath === 'string') ?
-                      this.texturePath : LoaderUtils.extractUrlBase(url);
-    var loader = new FileLoader(this.manager);
-    loader.setWithCredentials(this.withCredentials);
-    loader.load(url, function(text) {
-      var json = JSON.parse(text);
-      var object = scope.parse(json, texturePath);
-      onLoad(object.geometry, object.materials);
-    }, onProgress, onError);
-  },
-  setTexturePath: function (value) {
-    this.texturePath = value;
-  },
-  parse: (function () {
-    var geometry;
-    var sx, sy, sz;
-    var vertices;
+THREE.ImageDataLoader = (function () {
+  
+  /* Accumulates data, adding resolution every turn.
+   */
+  function Accumulator(length, offsets, scales) {
+    var noff = offsets.length;
+    var translation = offsets.map(function(o){return -o;});
     
-    function addShape(index) {
-      var sxi = Math.pow(2, sx - index * 8 - 8);
-      var syi = Math.pow(2, sy - index * 8 - 8);
-      var szi = Math.pow(2, sz - index * 8 - 8);
-      var varr = geometry.attributes.position.array;
+    var data = new Float32Array(length);
+    
+    for (var i=0, l=data.length; i<l; i+=noff) {
+      data.set(translation, i);
+    }
+    
+    return {
+      /* The data array.
+       */
+      data: data,
       
-      return function (image) {
+      /* Processes new data and adds to existing values.
+       */
+      addData: function (new_data, index, strides) {
+        var new_data_scale = scales.map(function (s) {
+          return Math.pow(2, s - index * 8 - 8);
+        });
+        strides = strides || 4; // Default: RGBA.
+        for (var i=0, j=0; i<length; i+=noff, j+=strides) {
+          for (var k=0; k<noff; k++) {
+            data[i+k] += new_data[j+k] * new_data_scale[k];
+          }
+        }
+      },
+      
+      /* Adds RGBA pixel values to data.
+       */
+      addImageData: function (image, index) {
         var canvas = document.createElement('canvas');
         var context = canvas.getContext('2d');
         canvas.width = image.width;
         canvas.height = image.height;
         context.drawImage(image, 0, 0);
-        var data = context.getImageData(0, 0, image.width, image.height).data;
-        for (var i = 0, j = 0, l = vertices.length; i < l; i += 3, j += 4) {
-          varr[i+0] = vertices[i+0] += data[j+0] * sxi;
-          varr[i+1] = vertices[i+1] += data[j+1] * syi;
-          varr[i+2] = vertices[i+2] += data[j+2] * szi;
-        }
-        if (index == 1) {
-          geometry.computeBoundingBox();
-          geometry.computeVertexNormals();
-        }
-        geometry.attributes.position.needsUpdate = true;
-      };
+        var d = context.getImageData(0, 0, image.width, image.height).data;
+        this.addData(d, index, 4);
+      }
     }
+  }
+  
+  //
+  
+  /* Loads array data from pixel values over multiple images.
+   */
+  function ImageDataLoader(manager) {
+    this.manager = (manager !== undefined) ?
+                    manager : THREE.DefaultLoadingManager;
+  }
+  
+  Object.assign(ImageDataLoader.prototype, {
+    constructor: ImageDataLoader,
+    crossOrigin: 'Anonymous',
     
-    function err() {
-      console.error(arguments);
-    }
-    
-    return function parse(json, texturePath) {
-      var ox = -json.offset[0];
-      var oy = -json.offset[1];
-      var oz = -json.offset[2];
-      var rw = json.resolution[0];
-      var rh = json.resolution[1];
+    load: function (urls, params, onLoad, onProgress, onError) {
+      var npix = params.resolution[0] * params.resolution[1];
+      var noff = params.offset.length;
+      var acc = new Accumulator(npix * noff, params.offset, params.scale);
+      var loader = new THREE.ImageLoader(this.manager);
+      var loading = 0;
       
-      var texture = (new TextureLoader()).load(json.texture);
-      var material = new MeshBasicMaterial({map: texture});
+      loader.setCrossOrigin(this.crossOrigin);
+      loader.setPath(this.path);
       
-      sx = json.scale[0];   // scale is the number of bits storing the
-      sy = json.scale[1];   // integer part for each float. This value
-      sz = json.scale[2];   // differs for x, y and z coordinates.
-      
-      vertices = new Float32Array(rw * rh * 3);
-      for (var i=0, l=vertices.length; i<l; i+=3) {
-        vertices[i+0] = ox;
-        vertices[i+1] = oy;
-        vertices[i+2] = oz;
+      if (typeof urls === 'string') {
+        urls = [urls];
       }
       
-      geometry = new PlaneBufferGeometry(1<<sx-1, 1<<sy-1, rw-1, rh-1);
-      json.shape.map(function (shape_file, ix) {
-        (new ImageLoader()).load(shape_file, addShape(ix), undefined, err);
-      });
+      loading = urls.length;
       
-      return {geometry: geometry, materials: [material]};
-    };
-  })()
-});
+      urls.forEach(function (url, index) {
+        loader.load(url, function (image) {
+        
+          acc.addImageData(image, index);
+          
+          if (onProgress !== undefined) {
+            onProgress(acc.data);
+          }
+          if (--loading === 0) {
+            onLoad(acc.data);
+            delete acc;
+          }
+        }, undefined, onError);
+      });
+    },
+
+    setCrossOrigin: function (value) {
+      this.crossOrigin = value;
+      return this;
+    },
+    
+    setPath: function (value) {
+      this.path = value;
+      return this;
+    }
+  });
+  
+  return ImageDataLoader;
+})();
+
+
+
+THREE.MapLoader = (function () {
+  
+  /* Loads .map files and linked assets to create a textured mesh.
+   */
+  function MapLoader(manager) {
+    this.manager = (manager !== undefined) ?
+                    manager : THREE.DefaultLoadingManager;
+  }
+  
+  Object.assign(MapLoader.prototype, {
+    constructor: MapLoader,
+    withCredentials: false,
+    
+    load: function (url, onLoad, onProgress, onError) {
+      var scope = this;
+      var loader = new THREE.FileLoader(this.manager);
+      
+      loader.setPath(this.path);
+      loader.setWithCredentials(this.withCredentials);
+      
+      loader.load(url, function(text) {
+        var json = JSON.parse(text);
+        var mesh = scope.parse(json);
+        if (onLoad !== undefined)
+          onLoad(mesh);
+      }, onProgress, onError);
+    },
+    
+    parse: function (json) {
+      var texture = new THREE.TextureLoader(this.manager);
+      var material = new THREE.MeshBasicMaterial();
+      
+      texture.setPath(this.path);
+      material.map = texture.load(json.texture);
+      
+      var shape = new THREE.ImageDataLoader(this.manager);
+      var geometry = new THREE.PlaneBufferGeometry(
+        1 << json.scale[0] - 1,  // scale is the number of bits storing the
+        1 << json.scale[1] - 1,  // integer part for each float. This value
+        json.resolution[0] - 1,  // differs for x, y and z coordinates.
+        json.resolution[1] - 1
+      );
+      
+      shape.setPath(this.path);
+      shape.load(json.shape, json, finalizeGeometry, updateGeometry);
+      
+      return new THREE.Mesh(geometry, material);
+      
+      function updateGeometry(data) {
+        geometry.attributes.position.array.set(data);
+        geometry.attributes.position.needsUpdate = true;
+      }
+      
+      function finalizeGeometry(data) {
+        geometry.attributes.position;
+        geometry.computeBoundingBox();
+        geometry.computeVertexNormals();
+      }
+    },
+    
+    setPath: function (value) {
+      this.path = value;
+      return this;
+    },
+    
+    setWithCredentials: function (value) {
+      this.withCredentials = value;
+      return this;
+    }
+  });
+  
+  return MapLoader;
+})();
 </script>
 <script type="text/javascript">
+var root = '//files.facer2vm.org/view/';
+root = 'data/';
+
 var camera;
 var controls;
 var renderer;
@@ -134,9 +236,12 @@ function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfd1e5);
   
-  (new MapLoader()).load('face.map', function (geometry, materials) {
-    scene.add(new THREE.Mesh(geometry, materials[0]));
-  });
+  if (location.hash) {
+    var loader = new THREE.MapLoader();
+    var file = location.hash.substr(1).match(/[\w-]*/)[0] + '.map';
+    loader.setPath(root);
+    loader.load(file, function (mesh) {scene.add(mesh);});
+  }
   
   camera = new THREE.PerspectiveCamera(50, 4/3, 1, 20000);
   camera.position.z = 400;
