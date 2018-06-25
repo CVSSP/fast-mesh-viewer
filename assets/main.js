@@ -19,11 +19,10 @@
             var root = document.body.dataset.root;
             var loader = new THREE.MapLoader();
             var name = location.hash.substr(1).match(/[\w-]*/)[0];
-            var mapfile = name + '.map';
-            var zipfile = name + '.zip';
+            var mapfile = name;
             loader.setPath(root);
             loader.load(mapfile, function (mesh) {scene.add(mesh);});
-            dl_button.href = root + zipfile;
+            //dl_button.href = root + zipfile;
         }
 
         camera = new THREE.PerspectiveCamera(50, 4/3, 1, 20000);
