@@ -1,4 +1,4 @@
-THREE.ImageDataLoader = (function () {
+THREE.ImageDataLoader = (function (THREE) {
   
   /* Accumulates data, adding resolution every turn.
    */
@@ -102,4 +102,4 @@ THREE.ImageDataLoader = (function () {
   });
   
   return ImageDataLoader;
-})();
+})(THREE);

@@ -1,4 +1,4 @@
-THREE.MapLoader = (function () {
+THREE.MapLoader = (function (THREE) {
   
   /* Loads .map files and linked assets to create a textured mesh.
    */
@@ -70,4 +70,4 @@ THREE.MapLoader = (function () {
   });
   
   return MapLoader;
-})();
+})(THREE);
